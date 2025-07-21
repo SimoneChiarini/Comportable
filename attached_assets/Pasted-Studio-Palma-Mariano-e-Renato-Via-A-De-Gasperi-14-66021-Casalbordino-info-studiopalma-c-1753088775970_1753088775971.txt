@@ -1,0 +1,47 @@
+Studio Palma Mariano e Renato
+Via A. De Gasperi, 14 – 66021 Casalbordino
+�������info@studiopalma.com
+⸻
+Oggetto: Richiesta di preventivo per lo sviluppo dell’app “Comportable”
+Gentili Sviluppatori,
+lo Studio Palma Mariano e Renato intende realizzare un’applicazione mobile e web denominata
+“Comportable”, destinata a supportare l’attività dei consulenti del lavoro nel calcolo del periodo di
+comporto secondo le principali disposizioni previste dai CCNL.
+������Finalità dell’applicazione:
+L’app dovrà permettere di:
+• Inserire i dati di ciascun lavoratore (nome, matricola, data assunzione, assenze ecc.)
+• Selezionare il CCNL applicabile tra:
+▪ Cooperative Sociali
+▪ Commercio
+▪ Metalmeccanica
+° Inserimento di altri CCNL
+• Calcolare in automatico il periodo di comporto residuo
+• Fornire notifiche push al raggiungimento dei -10 giorni dal termine del comporto
+• Generare avvisi nella dashboard web (utilizzo da PC)
+• Gestire cronologicamente le assenze
+• Esportare i dati (es. PDF o Excel)
+⸻
+�Requisiti tecnici suggeriti:
+• Tecnologie proposte: Flutter o React Native per l’app mobile, WebApp responsive per desktop
+• Backend consigliato: Firebase, Supabase o similari
+• Compatibilità con dispositivi iOS e desktop (browser)
+• Conformità GDPR e buona gestione dei dati sensibili
+⸻
+��Nella vostra proposta vi chiediamo di indicare:
+1. Tempo di realizzazione previsto
+2. Suddivisione dei costi per le diverse fasi (sviluppo, test, pubblicazione)
+3. Eventuali proposte migliorative
+4. Modalità di pubblicazione su App Store e hosting WebApp
+5. Tipologia di assistenza post-pubblicazione
+6. Modalità di rilascio del codice sorgente e documentazione tecnica
+⸻
+����������������Tempistiche:
+La presente richiesta ha validità 15 giorni dalla data di invio.
+Entro tale termine sarà necessario ricevere un preventivo formale e dettagliato.
+⸻
+��������Clausola di riserva:
+Lo Studio si riserva la facoltà di affidare l’incarico al professionista o team ritenuto più idoneo, a proprio
+insindacabile giudizio.
+Per ulteriori informazioni o chiarimenti siamo disponibili ai recapiti sopra indicati.
+Cordiali saluti,
+Dr. Palma Mariano 
