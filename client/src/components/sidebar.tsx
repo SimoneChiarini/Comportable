@@ -30,16 +30,16 @@ export default function Sidebar() {
         <nav className="mt-8 flex-1 px-2 space-y-1">
           {navigation.map((item) => (
             <Link key={item.name} href={item.href}>
-              <a
+              <div
                 className={`${
                   item.current
                     ? 'bg-primary text-white'
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                } group flex items-center px-2 py-2 text-sm font-medium rounded-md`}
+                } group flex items-center px-2 py-2 text-sm font-medium rounded-md cursor-pointer`}
               >
                 <item.icon className="mr-3 flex-shrink-0 h-6 w-6" />
                 {item.name}
-              </a>
+              </div>
             </Link>
           ))}
         </nav>

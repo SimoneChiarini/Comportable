@@ -22,7 +22,7 @@ export default function EmployeesTable({ employees, isLoading }: EmployeesTableP
     const matchesSearch = `${employee.firstName} ${employee.lastName} ${employee.employeeId}`
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
-    const matchesCcnl = !ccnlFilter || employee.ccnl.code === ccnlFilter;
+    const matchesCcnl = !ccnlFilter || ccnlFilter === "all" || employee.ccnl.code === ccnlFilter;
     return matchesSearch && matchesCcnl;
   }) || [];
 
@@ -85,7 +85,7 @@ export default function EmployeesTable({ employees, isLoading }: EmployeesTableP
                 <SelectValue placeholder="Tutti i CCNL" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Tutti i CCNL</SelectItem>
+                <SelectItem value="all">Tutti i CCNL</SelectItem>
                 <SelectItem value="COOP_SOCIALI">Cooperative Sociali</SelectItem>
                 <SelectItem value="COMMERCIO">Commercio</SelectItem>
                 <SelectItem value="METALMECCANICA">Metalmeccanica</SelectItem>
