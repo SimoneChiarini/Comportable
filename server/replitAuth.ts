@@ -26,7 +26,7 @@ export function getSession() {
   
   // Temporarily use default memory store for sessions while resolving database issues
   return session({
-    secret: process.env.SESSION_SECRET!,
+    secret: process.env.SESSION_SECRET || 'dev-secret-temp-comportable-2025',
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -123,7 +123,11 @@ export async function setupAuth(app: Express) {
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
   const user = req.user as any;
 
-  if (!req.isAuthenticated() || !user.expires_at) {
+  console.log('Auth check - isAuthenticated:', req.isAuthenticated());
+  console.log('Auth check - user:', user);
+
+  if (!req.isAuthenticated() || !user || !user.expires_at) {
+    console.log('Auth failed - not authenticated or missing expires_at');
     return res.status(401).json({ message: "Unauthorized" });
   }
 
