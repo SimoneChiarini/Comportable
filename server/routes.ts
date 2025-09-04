@@ -4,6 +4,8 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertEmployeeSchema, insertCcnlSchema, insertAbsenceSchema } from "@shared/schema";
 import { z } from "zod";
+import * as XLSX from 'xlsx';
+import multer from 'multer';
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -234,6 +236,131 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching stats:", error);
       res.status(500).json({ message: "Errore nel recupero delle statistiche" });
+    }
+  });
+
+  // Multer configuration for file uploads
+  const upload = multer({ storage: multer.memoryStorage() });
+
+  // Import employees from Excel
+  app.post('/api/employees/import', isAuthenticated, upload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "Nessun file caricato" });
+      }
+
+      const userId = req.user.claims.sub;
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(worksheet);
+
+      // Get available CCNLs
+      const ccnls = await storage.getCcnls();
+      const ccnlMap = new Map(ccnls.map(ccnl => [ccnl.name.toLowerCase(), ccnl.id]));
+
+      const importedEmployees = [];
+      const errors = [];
+
+      for (const [index, row] of data.entries()) {
+        try {
+          const rowData = row as any;
+          
+          // Map Excel columns to employee data
+          const employeeData = {
+            userId,
+            employeeId: rowData['Codice Dipendente'] || rowData['Employee ID'] || `EMP${Date.now()}-${index}`,
+            firstName: rowData['Nome'] || rowData['First Name'] || '',
+            lastName: rowData['Cognome'] || rowData['Last Name'] || '',
+            email: rowData['Email'] || '',
+            hireDate: rowData['Data Assunzione'] || rowData['Hire Date'] ? new Date(rowData['Data Assunzione'] || rowData['Hire Date']) : new Date(),
+            ccnlId: 1, // Default to first CCNL
+            isActive: true,
+          };
+
+          // Try to match CCNL
+          const ccnlName = rowData['CCNL'] || rowData['Contract'];
+          if (ccnlName) {
+            const matchedCcnlId = ccnlMap.get(ccnlName.toLowerCase());
+            if (matchedCcnlId) {
+              employeeData.ccnlId = matchedCcnlId;
+            }
+          }
+
+          // Validate data
+          const validatedData = insertEmployeeSchema.parse(employeeData);
+          const employee = await storage.createEmployee(validatedData);
+          importedEmployees.push(employee);
+        } catch (error) {
+          errors.push(`Riga ${index + 2}: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
+        }
+      }
+
+      res.json({
+        success: true,
+        imported: importedEmployees.length,
+        errors: errors.length,
+        errorDetails: errors,
+      });
+    } catch (error) {
+      console.error("Error importing employees:", error);
+      res.status(500).json({ message: "Errore durante l'importazione" });
+    }
+  });
+
+  // Export employees to PDF
+  app.get('/api/employees/export', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const employees = await storage.getEmployees(userId);
+      
+      // Create Excel data for PDF generation
+      const tableData = employees.map(employee => {
+        const totalAbsenceDays = employee.absences.reduce((sum, absence) => sum + absence.daysCounted, 0);
+        const remainingDays = employee.ccnl.comportoDays - totalAbsenceDays;
+        
+        let status = 'Conforme';
+        if (remainingDays < 0) {
+          status = 'Scaduto';
+        } else if (remainingDays <= 10) {
+          status = 'Attenzione';
+        }
+
+        return [
+          employee.employeeId,
+          `${employee.firstName} ${employee.lastName}`,
+          employee.email || '-',
+          employee.ccnl.name,
+          employee.ccnl.comportoDays.toString(),
+          totalAbsenceDays.toString(),
+          remainingDays.toString(),
+          status,
+          employee.hireDate.toLocaleDateString('it-IT')
+        ];
+      });
+
+      // Send JSON data that frontend will use to generate PDF
+      const exportData = {
+        title: 'Elenco Dipendenti - Comportable',
+        date: new Date().toLocaleDateString('it-IT'),
+        headers: [
+          'Codice',
+          'Nome Completo', 
+          'Email',
+          'CCNL',
+          'Giorni Comporto',
+          'Giorni Usati',
+          'Giorni Rimanenti',
+          'Stato',
+          'Data Assunzione'
+        ],
+        data: tableData,
+        stats: await storage.getEmployeeStats(userId)
+      };
+
+      res.json(exportData);
+    } catch (error) {
+      console.error("Error exporting employees:", error);
+      res.status(500).json({ message: "Errore durante l'esportazione" });
     }
   });
 

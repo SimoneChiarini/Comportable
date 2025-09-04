@@ -221,8 +221,8 @@ class MemoryStorage implements IStorage {
     });
     this.ccnls.set(2, {
       id: 2,
-      name: "Commercio", 
-      code: "COMMERCIO",
+      name: "Metalmeccanica industria",
+      code: "METALMECCANICA_INDUSTRIA",
       comportoDays: 180,
       isActive: true,
       createdAt: new Date(),
@@ -230,14 +230,41 @@ class MemoryStorage implements IStorage {
     });
     this.ccnls.set(3, {
       id: 3,
-      name: "Metalmeccanica",
-      code: "METALMECCANICA", 
+      name: "Metalmeccanica artigianato",
+      code: "METALMECCANICA_ARTIGIANATO",
       comportoDays: 180,
       isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    this.nextCcnlId = 4;
+    this.ccnls.set(4, {
+      id: 4,
+      name: "Commercio",
+      code: "COMMERCIO",
+      comportoDays: 180,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    this.ccnls.set(5, {
+      id: 5,
+      name: "Turismo",
+      code: "TURISMO",
+      comportoDays: 180,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    this.ccnls.set(6, {
+      id: 6,
+      name: "Edilizia industria",
+      code: "EDILIZIA_INDUSTRIA",
+      comportoDays: 180,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    this.nextCcnlId = 7;
   }
 
   async getUser(id: string): Promise<User | undefined> {

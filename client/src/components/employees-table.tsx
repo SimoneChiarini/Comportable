@@ -87,8 +87,11 @@ export default function EmployeesTable({ employees, isLoading }: EmployeesTableP
               <SelectContent>
                 <SelectItem value="all">Tutti i CCNL</SelectItem>
                 <SelectItem value="COOP_SOCIALI">Cooperative Sociali</SelectItem>
+                <SelectItem value="METALMECCANICA_INDUSTRIA">Metalmeccanica industria</SelectItem>
+                <SelectItem value="METALMECCANICA_ARTIGIANATO">Metalmeccanica artigianato</SelectItem>
                 <SelectItem value="COMMERCIO">Commercio</SelectItem>
-                <SelectItem value="METALMECCANICA">Metalmeccanica</SelectItem>
+                <SelectItem value="TURISMO">Turismo</SelectItem>
+                <SelectItem value="EDILIZIA_INDUSTRIA">Edilizia industria</SelectItem>
               </SelectContent>
             </Select>
           </div>
