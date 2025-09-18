@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { insertEmployeeSchema } from "@shared/schema";
+import { insertEmployeeSchema, type EmployeeWithRelations } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -38,9 +38,10 @@ interface EmployeeFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  employee?: EmployeeWithRelations; // Optional: if provided, we're editing
 }
 
-export default function EmployeeForm({ isOpen, onClose, onSuccess }: EmployeeFormProps) {
+export default function EmployeeForm({ isOpen, onClose, onSuccess, employee }: EmployeeFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -49,17 +50,55 @@ export default function EmployeeForm({ isOpen, onClose, onSuccess }: EmployeeFor
     retry: false,
   });
 
+  const isEditing = !!employee;
+  
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
+    defaultValues: isEditing ? {
+      employeeId: employee.employeeId,
+      firstName: employee.firstName,
+      lastName: employee.lastName,
+      email: employee.email || "",
+      hireDate: employee.hireDate instanceof Date ? employee.hireDate.toISOString().split('T')[0] : new Date(employee.hireDate).toISOString().split('T')[0],
+      ccnlId: employee.ccnlId,
+      isActive: employee.isActive,
+    } : {
       employeeId: "",
       firstName: "",
       lastName: "",
+      email: "",
       hireDate: "",
       ccnlId: 0,
       isActive: true,
     },
   });
+
+  // Reset form when employee changes or modal opens/closes
+  useEffect(() => {
+    if (isOpen && employee) {
+      // Edit mode: populate with employee data
+      form.reset({
+        employeeId: employee.employeeId,
+        firstName: employee.firstName,
+        lastName: employee.lastName,
+        email: employee.email || "",
+        hireDate: employee.hireDate instanceof Date ? employee.hireDate.toISOString().split('T')[0] : new Date(employee.hireDate).toISOString().split('T')[0],
+        ccnlId: employee.ccnlId,
+        isActive: employee.isActive,
+      });
+    } else if (isOpen && !employee) {
+      // Create mode: reset to defaults
+      form.reset({
+        employeeId: "",
+        firstName: "",
+        lastName: "",
+        email: "",
+        hireDate: "",
+        ccnlId: 0,
+        isActive: true,
+      });
+    }
+  }, [employee, isOpen, form]);
 
   const createEmployeeMutation = useMutation({
     mutationFn: async (data: z.infer<typeof formSchema>) => {
@@ -95,8 +134,46 @@ export default function EmployeeForm({ isOpen, onClose, onSuccess }: EmployeeFor
     },
   });
 
+  const updateEmployeeMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof formSchema>) => {
+      return await apiRequest("PUT", `/api/employees/${employee!.id}`, data);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Successo",
+        description: "Dipendente aggiornato con successo",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/employees'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
+      form.reset();
+      onSuccess();
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Non Autorizzato",
+          description: "Sessione scaduta. Effettuando nuovamente l'accesso...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Errore",
+        description: "Errore nell'aggiornamento del dipendente",
+        variant: "destructive",
+      });
+    },
+  });
+
   const onSubmit = (data: z.infer<typeof formSchema>) => {
-    createEmployeeMutation.mutate(data);
+    if (isEditing) {
+      updateEmployeeMutation.mutate(data);
+    } else {
+      createEmployeeMutation.mutate(data);
+    }
   };
 
   const handleClose = () => {
@@ -108,9 +185,12 @@ export default function EmployeeForm({ isOpen, onClose, onSuccess }: EmployeeFor
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Aggiungi Nuovo Dipendente</DialogTitle>
+          <DialogTitle>{isEditing ? 'Modifica Dipendente' : 'Aggiungi Nuovo Dipendente'}</DialogTitle>
           <DialogDescription>
-            Inserisci i dati del nuovo dipendente e seleziona il CCNL applicabile.
+            {isEditing 
+              ? 'Modifica i dati del dipendente e seleziona il CCNL applicabile.'
+              : 'Inserisci i dati del nuovo dipendente e seleziona il CCNL applicabile.'
+            }
           </DialogDescription>
         </DialogHeader>
 
@@ -151,7 +231,21 @@ export default function EmployeeForm({ isOpen, onClose, onSuccess }: EmployeeFor
                 <FormItem>
                   <FormLabel>Matricola</FormLabel>
                   <FormControl>
-                    <Input placeholder="es. MAT001" {...field} />
+                    <Input placeholder="es. MAT001" {...field} disabled={isEditing} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input type="email" placeholder="es. mario.rossi@azienda.it" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -178,7 +272,10 @@ export default function EmployeeForm({ isOpen, onClose, onSuccess }: EmployeeFor
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>CCNL Applicabile</FormLabel>
-                  <Select onValueChange={(value) => field.onChange(parseInt(value))}>
+                  <Select 
+                    value={String(field.value ?? '')} 
+                    onValueChange={(value) => field.onChange(parseInt(value))}
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleziona CCNL" />
@@ -201,8 +298,8 @@ export default function EmployeeForm({ isOpen, onClose, onSuccess }: EmployeeFor
               <Button type="button" variant="outline" onClick={handleClose}>
                 Annulla
               </Button>
-              <Button type="submit" disabled={createEmployeeMutation.isPending}>
-                {createEmployeeMutation.isPending ? "Salvataggio..." : "Salva"}
+              <Button type="submit" disabled={isEditing ? updateEmployeeMutation.isPending : createEmployeeMutation.isPending}>
+                {(isEditing ? updateEmployeeMutation.isPending : createEmployeeMutation.isPending) ? "Salvataggio..." : (isEditing ? "Aggiorna" : "Salva")}
               </Button>
             </div>
           </form>

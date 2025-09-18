@@ -12,9 +12,11 @@ import type { EmployeeWithRelations } from "@shared/schema";
 interface EmployeesTableProps {
   employees?: EmployeeWithRelations[];
   isLoading: boolean;
+  onViewEmployee?: (employee: EmployeeWithRelations) => void;
+  onEditEmployee?: (employee: EmployeeWithRelations) => void;
 }
 
-export default function EmployeesTable({ employees, isLoading }: EmployeesTableProps) {
+export default function EmployeesTable({ employees, isLoading, onViewEmployee, onEditEmployee }: EmployeesTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [ccnlFilter, setCcnlFilter] = useState("");
 
@@ -170,10 +172,21 @@ export default function EmployeesTable({ employees, isLoading }: EmployeesTableP
                         </Badge>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <Button variant="ghost" size="sm" className="mr-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="mr-2"
+                          onClick={() => onViewEmployee?.(employee)}
+                          data-testid={`button-view-${employee.id}`}
+                        >
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => onEditEmployee?.(employee)}
+                          data-testid={`button-edit-${employee.id}`}
+                        >
                           <Edit className="h-4 w-4" />
                         </Button>
                       </td>

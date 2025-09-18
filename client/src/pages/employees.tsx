@@ -6,6 +6,7 @@ import Sidebar from "@/components/sidebar";
 import MobileHeader from "@/components/mobile-header";
 import EmployeesTable from "@/components/employees-table";
 import EmployeeForm from "@/components/employee-form";
+import type { EmployeeWithRelations } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Download, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ export default function Employees() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
   const [isAddEmployeeOpen, setIsAddEmployeeOpen] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<EmployeeWithRelations | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: employees, isLoading: employeesLoading } = useQuery({
@@ -53,10 +55,10 @@ export default function Employees() {
         console.log("Errori di importazione:", data.errorDetails);
       }
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
         title: "Errore nell'importazione",
-        description: error.message,
+        description: error?.message || "Errore sconosciuto",
         variant: "destructive",
       });
     },
@@ -65,7 +67,7 @@ export default function Employees() {
   // Export function
   const handleExport = async () => {
     try {
-      const response = await apiRequest('/api/employees/export');
+      const response = await apiRequest('GET', '/api/employees/export');
       const data = await response.json();
       
       // Create PDF
@@ -152,6 +154,20 @@ export default function Employees() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
+  // Handle employee view/edit callbacks
+  const handleViewEmployee = (employee: EmployeeWithRelations) => {
+    // For now, just show a toast with employee details
+    // Later this could open a detailed view modal
+    toast({
+      title: "Visualizzazione Dipendente",
+      description: `${employee.firstName} ${employee.lastName} - Matricola: ${employee.employeeId}`,
+    });
+  };
+
+  const handleEditEmployee = (employee: EmployeeWithRelations) => {
+    setEditingEmployee(employee);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -228,7 +244,12 @@ export default function Employees() {
           </div>
 
           {/* Employees Table */}
-          <EmployeesTable employees={employees} isLoading={employeesLoading} />
+          <EmployeesTable 
+            employees={employees as EmployeeWithRelations[] | undefined} 
+            isLoading={employeesLoading}
+            onViewEmployee={handleViewEmployee}
+            onEditEmployee={handleEditEmployee}
+          />
         </main>
       </div>
 
@@ -240,6 +261,17 @@ export default function Employees() {
           setIsAddEmployeeOpen(false);
           // Refresh data will happen automatically via react-query invalidation
         }}
+      />
+
+      {/* Edit Employee Modal */}
+      <EmployeeForm 
+        isOpen={!!editingEmployee}
+        onClose={() => setEditingEmployee(null)}
+        onSuccess={() => {
+          setEditingEmployee(null);
+          // Refresh data will happen automatically via react-query invalidation
+        }}
+        employee={editingEmployee || undefined}
       />
     </div>
   );

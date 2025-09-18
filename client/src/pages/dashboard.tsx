@@ -10,6 +10,7 @@ import StatsCards from "@/components/stats-cards";
 import EmployeesTable from "@/components/employees-table";
 import RecentActivity from "@/components/recent-activity";
 import EmployeeForm from "@/components/employee-form";
+import type { EmployeeWithRelations } from "@shared/schema";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,7 @@ export default function Dashboard() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
   const [isAddEmployeeOpen, setIsAddEmployeeOpen] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<EmployeeWithRelations | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize CCNLs on first load
@@ -67,10 +69,10 @@ export default function Dashboard() {
         console.log("Errori di importazione:", data.errorDetails);
       }
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
         title: "Errore nell'importazione",
-        description: error.message,
+        description: error?.message || "Errore sconosciuto",
         variant: "destructive",
       });
     },
@@ -138,11 +140,11 @@ export default function Dashboard() {
         title: "Esportazione completata",
         description: "Il file PDF è stato scaricato",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Export error:", error);
       toast({
         title: "Errore nell'esportazione",
-        description: error.message || "Impossibile generare il PDF",
+        description: error?.message || "Impossibile generare il PDF",
         variant: "destructive",
       });
     }
@@ -188,6 +190,20 @@ export default function Dashboard() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
+  // Handle employee view/edit callbacks
+  const handleViewEmployee = (employee: EmployeeWithRelations) => {
+    // For now, just show a toast with employee details
+    // Later this could open a detailed view modal
+    toast({
+      title: "Visualizzazione Dipendente",
+      description: `${employee.firstName} ${employee.lastName} - Matricola: ${employee.employeeId}`,
+    });
+  };
+
+  const handleEditEmployee = (employee: EmployeeWithRelations) => {
+    setEditingEmployee(employee);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -203,7 +219,7 @@ export default function Dashboard() {
     return null;
   }
 
-  const criticalEmployees = employees?.filter((emp: any) => {
+  const criticalEmployees = (employees as EmployeeWithRelations[] | undefined)?.filter((emp: EmployeeWithRelations) => {
     const totalAbsenceDays = emp.absences?.reduce((sum: number, absence: any) => sum + absence.daysCounted, 0) || 0;
     const remainingDays = emp.ccnl.comportoDays - totalAbsenceDays;
     return remainingDays <= 10 && remainingDays >= 0;
@@ -239,7 +255,7 @@ export default function Dashboard() {
           )}
 
           {/* Stats Cards */}
-          <StatsCards stats={stats} isLoading={statsLoading} />
+          <StatsCards stats={stats as any} isLoading={statsLoading} />
 
           {/* Action Buttons */}
           <div className="mb-6 flex flex-col sm:flex-row gap-4">
@@ -281,7 +297,12 @@ export default function Dashboard() {
           </div>
 
           {/* Employees Table */}
-          <EmployeesTable employees={employees} isLoading={employeesLoading} />
+          <EmployeesTable 
+            employees={employees as EmployeeWithRelations[] | undefined} 
+            isLoading={employeesLoading}
+            onViewEmployee={handleViewEmployee}
+            onEditEmployee={handleEditEmployee}
+          />
 
           {/* Recent Activity */}
           <RecentActivity />
@@ -297,6 +318,17 @@ export default function Dashboard() {
           // Refresh data
           window.location.reload();
         }}
+      />
+
+      {/* Edit Employee Modal */}
+      <EmployeeForm 
+        isOpen={!!editingEmployee}
+        onClose={() => setEditingEmployee(null)}
+        onSuccess={() => {
+          setEditingEmployee(null);
+          // Refresh data will happen automatically via react-query invalidation
+        }}
+        employee={editingEmployee || undefined}
       />
     </div>
   );

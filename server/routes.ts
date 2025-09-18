@@ -139,7 +139,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalAbsenceDays.toString(),
           remainingDays.toString(),
           status,
-          employee.hireDate.toLocaleDateString('it-IT')
+          new Date(employee.hireDate).toLocaleDateString('it-IT')
         ];
       });
 
