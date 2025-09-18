@@ -1,23 +1,26 @@
-import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState, useRef } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import Sidebar from "@/components/sidebar";
 import MobileHeader from "@/components/mobile-header";
 import StatsCards from "@/components/stats-cards";
 import EmployeesTable from "@/components/employees-table";
 import RecentActivity from "@/components/recent-activity";
 import EmployeeForm from "@/components/employee-form";
-import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function Dashboard() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
   const [isAddEmployeeOpen, setIsAddEmployeeOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize CCNLs on first load
   useQuery({
@@ -34,6 +37,141 @@ export default function Dashboard() {
     queryKey: ['/api/employees'],
     retry: false,
   });
+
+  // Import mutation
+  const importMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const response = await fetch('/api/employees/import', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Errore durante l\'importazione');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/employees'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
+      
+      toast({
+        title: "Importazione completata",
+        description: `${data.imported} dipendenti importati${data.errors > 0 ? `, ${data.errors} errori` : ''}`,
+        variant: data.errors > 0 ? "destructive" : "default",
+      });
+      
+      if (data.errorDetails && data.errorDetails.length > 0) {
+        console.log("Errori di importazione:", data.errorDetails);
+      }
+    },
+    onError: (error) => {
+      toast({
+        title: "Errore nell'importazione",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Export function
+  const handleExport = async () => {
+    try {
+      console.log("Starting export...");
+      
+      // Check if jsPDF is available
+      if (typeof jsPDF === 'undefined') {
+        throw new Error("jsPDF non disponibile");
+      }
+      if (typeof autoTable === 'undefined') {
+        throw new Error("jsPDF-autoTable non disponibile");
+      }
+      
+      console.log("Calling API...");
+      const response = await apiRequest('GET', '/api/employees/export');
+      
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      }
+      
+      console.log("Parsing response...");
+      const data = await response.json();
+      console.log("Export data received:", data);
+      
+      // Create PDF
+      console.log("Creating PDF...");
+      const doc = new jsPDF();
+      
+      // Title
+      doc.setFontSize(18);
+      doc.text(data.title, 14, 22);
+      
+      // Date
+      doc.setFontSize(12);
+      doc.text(`Data: ${data.date}`, 14, 32);
+      
+      // Stats
+      doc.setFontSize(10);
+      doc.text(`Totale: ${data.stats.total} | Conformi: ${data.stats.compliant} | In Attenzione: ${data.stats.expiringSoon} | Scaduti: ${data.stats.expired}`, 14, 42);
+      
+      // Table
+      console.log("Adding table to PDF...");
+      autoTable(doc, {
+        head: [data.headers],
+        body: data.data,
+        startY: 50,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [66, 139, 202] },
+        columnStyles: {
+          6: { halign: 'center' }, // Giorni Rimanenti
+          7: { halign: 'center' }, // Stato
+        },
+      });
+      
+      // Save PDF
+      console.log("Saving PDF...");
+      doc.save(`dipendenti_${new Date().toISOString().slice(0, 10)}.pdf`);
+      
+      toast({
+        title: "Esportazione completata",
+        description: "Il file PDF è stato scaricato",
+      });
+    } catch (error) {
+      console.error("Export error:", error);
+      toast({
+        title: "Errore nell'esportazione",
+        description: error.message || "Impossibile generare il PDF",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle file import
+  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      toast({
+        title: "File non valido",
+        description: "Seleziona un file Excel (.xlsx o .xls)",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    importMutation.mutate(formData);
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -65,8 +203,8 @@ export default function Dashboard() {
     return null;
   }
 
-  const criticalEmployees = employees?.filter(emp => {
-    const totalAbsenceDays = emp.absences?.reduce((sum, absence) => sum + absence.daysCounted, 0) || 0;
+  const criticalEmployees = employees?.filter((emp: any) => {
+    const totalAbsenceDays = emp.absences?.reduce((sum: number, absence: any) => sum + absence.daysCounted, 0) || 0;
     const remainingDays = emp.ccnl.comportoDays - totalAbsenceDays;
     return remainingDays <= 10 && remainingDays >= 0;
   }) || [];
@@ -108,18 +246,38 @@ export default function Dashboard() {
             <button
               className="bg-primary hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center"
               onClick={() => setIsAddEmployeeOpen(true)}
+              data-testid="button-add-employee"
             >
               <span className="mr-2">+</span>
               Aggiungi Dipendente
             </button>
-            <button className="bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md text-sm font-medium border border-gray-300 flex items-center">
+            <button 
+              className="bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md text-sm font-medium border border-gray-300 flex items-center"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importMutation.isPending}
+              data-testid="button-import-data"
+            >
               <span className="mr-2">↑</span>
-              Importa Dati
+              {importMutation.isPending ? 'Importando...' : 'Importa Dati'}
             </button>
-            <button className="bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md text-sm font-medium border border-gray-300 flex items-center">
+            <button 
+              className="bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md text-sm font-medium border border-gray-300 flex items-center"
+              onClick={handleExport}
+              data-testid="button-export-all"
+            >
               <span className="mr-2">↓</span>
               Esporta Tutto
             </button>
+            
+            {/* Hidden file input for Excel import */}
+            <Input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleFileImport}
+              className="hidden"
+              data-testid="input-file-import"
+            />
           </div>
 
           {/* Employees Table */}

@@ -16,10 +16,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const existingCcnls = await storage.getCcnls();
       if (existingCcnls.length === 0) {
-        // Create default CCNLs
+        // Create default CCNLs to match MemoryStorage
         await storage.createCcnl({
           name: "Cooperative Sociali",
           code: "COOP_SOCIALI",
+          comportoDays: 180,
+          isActive: true,
+        });
+        await storage.createCcnl({
+          name: "Metalmeccanica industria",
+          code: "METALMECCANICA_INDUSTRIA",
+          comportoDays: 180,
+          isActive: true,
+        });
+        await storage.createCcnl({
+          name: "Metalmeccanica artigianato",
+          code: "METALMECCANICA_ARTIGIANATO",
           comportoDays: 180,
           isActive: true,
         });
@@ -30,8 +42,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           isActive: true,
         });
         await storage.createCcnl({
-          name: "Metalmeccanica",
-          code: "METALMECCANICA", 
+          name: "Turismo",
+          code: "TURISMO",
+          comportoDays: 180,
+          isActive: true,
+        });
+        await storage.createCcnl({
+          name: "Edilizia industria",
+          code: "EDILIZIA_INDUSTRIA",
           comportoDays: 180,
           isActive: true,
         });
@@ -91,6 +109,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching employees:", error);
       res.status(500).json({ message: "Errore nel recupero dei dipendenti" });
+    }
+  });
+
+  // Export employees route (must be before the parametric :id route)
+  app.get('/api/employees/export', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const employees = await storage.getEmployees(userId);
+      
+      // Create Excel data for PDF generation
+      const tableData = employees.map(employee => {
+        const totalAbsenceDays = employee.absences.reduce((sum, absence) => sum + absence.daysCounted, 0);
+        const remainingDays = employee.ccnl.comportoDays - totalAbsenceDays;
+        
+        let status = 'Conforme';
+        if (remainingDays < 0) {
+          status = 'Scaduto';
+        } else if (remainingDays <= 10) {
+          status = 'Attenzione';
+        }
+
+        return [
+          employee.employeeId,
+          `${employee.firstName} ${employee.lastName}`,
+          employee.email || '-',
+          employee.ccnl.name,
+          employee.ccnl.comportoDays.toString(),
+          totalAbsenceDays.toString(),
+          remainingDays.toString(),
+          status,
+          employee.hireDate.toLocaleDateString('it-IT')
+        ];
+      });
+
+      // Send JSON data that frontend will use to generate PDF
+      const exportData = {
+        title: 'Elenco Dipendenti - Comportable',
+        date: new Date().toLocaleDateString('it-IT'),
+        headers: [
+          'Codice',
+          'Nome Completo', 
+          'Email',
+          'CCNL',
+          'Giorni Comporto',
+          'Giorni Usati',
+          'Giorni Rimanenti',
+          'Stato',
+          'Data Assunzione'
+        ],
+        data: tableData,
+        stats: await storage.getEmployeeStats(userId)
+      };
+
+      res.json(exportData);
+    } catch (error) {
+      console.error("Error exporting employees:", error);
+      res.status(500).json({ message: "Errore durante l'esportazione" });
     }
   });
 
@@ -307,62 +382,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Export employees to PDF
-  app.get('/api/employees/export', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const employees = await storage.getEmployees(userId);
-      
-      // Create Excel data for PDF generation
-      const tableData = employees.map(employee => {
-        const totalAbsenceDays = employee.absences.reduce((sum, absence) => sum + absence.daysCounted, 0);
-        const remainingDays = employee.ccnl.comportoDays - totalAbsenceDays;
-        
-        let status = 'Conforme';
-        if (remainingDays < 0) {
-          status = 'Scaduto';
-        } else if (remainingDays <= 10) {
-          status = 'Attenzione';
-        }
-
-        return [
-          employee.employeeId,
-          `${employee.firstName} ${employee.lastName}`,
-          employee.email || '-',
-          employee.ccnl.name,
-          employee.ccnl.comportoDays.toString(),
-          totalAbsenceDays.toString(),
-          remainingDays.toString(),
-          status,
-          employee.hireDate.toLocaleDateString('it-IT')
-        ];
-      });
-
-      // Send JSON data that frontend will use to generate PDF
-      const exportData = {
-        title: 'Elenco Dipendenti - Comportable',
-        date: new Date().toLocaleDateString('it-IT'),
-        headers: [
-          'Codice',
-          'Nome Completo', 
-          'Email',
-          'CCNL',
-          'Giorni Comporto',
-          'Giorni Usati',
-          'Giorni Rimanenti',
-          'Stato',
-          'Data Assunzione'
-        ],
-        data: tableData,
-        stats: await storage.getEmployeeStats(userId)
-      };
-
-      res.json(exportData);
-    } catch (error) {
-      console.error("Error exporting employees:", error);
-      res.status(500).json({ message: "Errore durante l'esportazione" });
-    }
-  });
 
   const httpServer = createServer(app);
   return httpServer;
